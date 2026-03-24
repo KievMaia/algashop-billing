@@ -4,7 +4,6 @@ import com.algaworks.algashop.billing.domain.model.DomainException;
 import com.algaworks.algashop.billing.domain.model.IdGenerator;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToOne;
 import lombok.*;
 import org.apache.commons.lang3.StringUtils;

@@ -2,6 +2,7 @@ package com.algaworks.algashop.billing.domain.model.invoice;
 
 import com.algaworks.algashop.billing.domain.model.DomainException;
 import com.algaworks.algashop.billing.domain.model.IdGenerator;
+import jakarta.persistence.*;
 import lombok.*;
 import org.apache.commons.lang3.StringUtils;
 
@@ -14,8 +15,10 @@ import java.util.*;
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
+@Entity
 public class Invoice {
 
+    @Id
     @EqualsAndHashCode.Include
     private UUID id;
     private String orderId;
@@ -28,10 +31,14 @@ public class Invoice {
 
     private BigDecimal totalAmount;
 
+    @Enumerated(EnumType.STRING)
     private InvoiceStatus status;
 
+    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private PaymentSettings paymentSettings;
 
+    @ElementCollection
+    @CollectionTable(name = "invoice_line_item", joinColumns = @JoinColumn(name = "invoice_id_"))
     private Set<LineItem> items = new HashSet<>();
 
     public boolean isCanceled() {
@@ -46,6 +53,7 @@ public class Invoice {
         return InvoiceStatus.PAID.equals(this.getStatus());
     }
 
+    @Embedded
     private Payer payer;
 
     private String cancelReason;
@@ -120,6 +128,7 @@ public class Invoice {
                     "Invoice %s with status %s cannot be edited", this.getId(), this.getStatus().toString().toLowerCase()));
         }
         var paymentSettings = PaymentSettings.brandNew(method, creditCardId);
+        paymentSettings.setInvoice(this);
         this.setPaymentSettings(paymentSettings);
     }
 }

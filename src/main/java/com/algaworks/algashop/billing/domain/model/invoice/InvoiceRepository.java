@@ -6,4 +6,5 @@ import java.util.UUID;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
+    boolean existsByOrderId(String orderId);
 }

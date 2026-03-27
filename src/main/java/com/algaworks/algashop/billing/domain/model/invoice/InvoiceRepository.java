@@ -1,6 +1,5 @@
 package com.algaworks.algashop.billing.domain.model.invoice;
 
-import com.algaworks.algashop.billing.application.invoice.query.InvoiceOutput;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

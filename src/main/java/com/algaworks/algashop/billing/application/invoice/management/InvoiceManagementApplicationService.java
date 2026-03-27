@@ -3,13 +3,10 @@ package com.algaworks.algashop.billing.application.invoice.management;
 import com.algaworks.algashop.billing.domain.model.DomainException;
 import com.algaworks.algashop.billing.domain.model.creditcard.CreditCardNotFoundException;
 import com.algaworks.algashop.billing.domain.model.creditcard.CreditCardRepository;
-import com.algaworks.algashop.billing.domain.model.invoice.Address;
-import com.algaworks.algashop.billing.domain.model.invoice.Invoice;
-import com.algaworks.algashop.billing.domain.model.invoice.InvoiceRepository;
-import com.algaworks.algashop.billing.domain.model.invoice.InvoicingService;
-import com.algaworks.algashop.billing.domain.model.invoice.LineItem;
-import com.algaworks.algashop.billing.domain.model.invoice.Payer;
+import com.algaworks.algashop.billing.domain.model.invoice.*;
+import com.algaworks.algashop.billing.domain.model.invoice.payment.Payment;
 import com.algaworks.algashop.billing.domain.model.invoice.payment.PaymentGatewayService;
+import com.algaworks.algashop.billing.domain.model.invoice.payment.PaymentRequest;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,12 +27,12 @@ public class InvoiceManagementApplicationService {
     private final InvoicingService invoicingService;
     private final InvoiceRepository invoiceRepository;
     private final CreditCardRepository creditCardRepository;
-    
+
     @Transactional
     public UUID generate(GenerateInvoiceInput input) {
         var paymentSettings = input.getPaymentSettings();
         verifyCreditCardId(paymentSettings.getCreditCardId(), input.getCustomerId());
-        
+
         var payer = converToPayer(input.getPayer());
         var items = convertToLineItems(input.getItems());
 
@@ -47,15 +44,44 @@ public class InvoiceManagementApplicationService {
         return invoice.getId();
     }
 
+    @Transactional
+    public void processPayment(UUID invoiceId) {
+        var invoice = invoiceRepository.findById(invoiceId).orElseThrow(InvoiceNotFoundException::new);
+        var paymentRequest = toPaymentRequest(invoice);
+
+        Payment payment;
+        try {
+            payment = paymentGatewayService.capture(paymentRequest);
+        } catch (Exception e) {
+            var paymentCaptureFailed = "Payment capture failed";
+            log.error(paymentCaptureFailed);
+            invoice.markAsCancelled(paymentCaptureFailed);
+            invoiceRepository.saveAndFlush(invoice);
+            return;
+        }
+        invoicingService.assignPayment(invoice, payment);
+        invoiceRepository.saveAndFlush(invoice);
+    }
+
+    private PaymentRequest toPaymentRequest(final Invoice invoice) {
+        return PaymentRequest.builder()
+                .amount(invoice.getTotalAmount())
+                .method(invoice.getPaymentSettings().getPaymentMethod())
+                .creditCardId(invoice.getPaymentSettings().getCreditCardId())
+                .payer(invoice.getPayer())
+                .invoiceId(invoice.getId())
+                .build();
+    }
+
     private Set<LineItem> convertToLineItems(Set<LineItemInput> items) {
         Set<LineItem> lineItems = new LinkedHashSet<>();
         int itemNumber = 1;
         for (LineItemInput item : items) {
             lineItems.add(LineItem.builder()
-                            .number(itemNumber++)
-                            .name(item.getName())
-                            .amount(item.getAmount())
-                    .build());
+                                  .number(itemNumber++)
+                                  .name(item.getName())
+                                  .amount(item.getAmount())
+                                  .build());
         }
         return lineItems;
     }
@@ -69,14 +95,14 @@ public class InvoiceManagementApplicationService {
                 .document(payerData.getDocument())
                 .phone(payerData.getPhone())
                 .address(Address.builder()
-                        .city(addressData.getCity())
-                        .state(addressData.getState())
-                        .neighborhood(addressData.getNeighborhood())
-                        .complement(addressData.getComplement())
-                        .zipCode(addressData.getZipCode())
-                        .street(addressData.getStreet())
-                        .number(addressData.getNumber())
-                        .build())
+                                 .city(addressData.getCity())
+                                 .state(addressData.getState())
+                                 .neighborhood(addressData.getNeighborhood())
+                                 .complement(addressData.getComplement())
+                                 .zipCode(addressData.getZipCode())
+                                 .street(addressData.getStreet())
+                                 .number(addressData.getNumber())
+                                 .build())
                 .build();
     }
 
